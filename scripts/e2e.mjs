@@ -7,6 +7,7 @@ import path from 'node:path'
 
 const prompt = process.argv[2] ?? '做一个极简的番茄钟计时器页面'
 const prefix = process.argv[3] ?? 'e2e'
+const BASE = process.env.BASE_URL ?? 'http://localhost:5173'
 
 const browser = await chromium.launch()
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
@@ -14,7 +15,7 @@ const logs = []
 page.on('console', (m) => logs.push(`[${m.type()}] ${m.text()}`))
 page.on('pageerror', (e) => logs.push(`[pageerror] ${e.message}`))
 
-await page.goto('http://localhost:5173', { waitUntil: 'commit' })
+await page.goto(BASE, { waitUntil: 'commit' })
 await page.waitForTimeout(2500)
 
 page.on('request', (r) => {

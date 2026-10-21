@@ -1,0 +1,13 @@
+node_modules
+dist
+.env
+.env.local
+public/vendor
+*.log
+.DS_Store
+.vite
+
+# 调试产物
+shot-*.png
+e2e-*.png
+ui-*.png

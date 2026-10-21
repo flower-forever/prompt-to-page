@@ -1,0 +1,295 @@
+{
+  "id": "pomodoro",
+  "title": "番茄钟",
+  "prompt": "做一个极简的番茄钟计时器页面：圆形进度环、开始/暂停按钮、可切换时长",
+  "code": "```tsx\nimport { useEffect, useRef, useState } from \"react\";\n\nexport default function App() {\n  const [duration, setDuration] = useState(25);\n  const [secondsLeft, setSecondsLeft] = useState(25 * 60);\n  const [isRunning, setIsRunning] = useState(false);\n  const intervalRef = useRef(null);\n\n  useEffect(() => {\n    if (!isRunning) return undefined;\n\n    intervalRef.current = setInterval(() => {\n      setSecondsLeft((current) => {\n        if (current <= 1) {\n          setIsRunning(false);\n          return 0;\n        }\n        return current - 1;\n      });\n    }, 1000);\n\n    return () => clearInterval(intervalRef.current);\n  }, [isRunning]);\n\n  const totalSeconds = duration * 60;\n  const progress = totalSeconds === 0 ? 0 : (totalSeconds - secondsLeft) / totalSeconds;\n  const radius = 128;\n  const circumference = 2 * Math.PI * radius;\n  const dashOffset = circumference * (1 - progress);\n  const minutes = Math.floor(secondsLeft / 60);\n  const seconds = secondsLeft % 60;\n\n  const switchDuration = (nextDuration) => {\n    setDuration(nextDuration);\n    setSecondsLeft(nextDuration * 60);\n    setIsRunning(false);\n  };\n\n  const toggleTimer = () => {\n    if (secondsLeft === 0) {\n      setSecondsLeft(totalSeconds);\n      setIsRunning(true);\n      return;\n    }\n    setIsRunning((running) => !running);\n  };\n\n  const resetTimer = () => {\n    setSecondsLeft(totalSeconds);\n    setIsRunning(false);\n  };\n\n  return (\n    <main className=\"min-h-screen w-full bg-[#0b0d10] text-[#f4f1ea] flex items-center justify-center px-6 py-12 font-sans\">\n      <section className=\"w-full max-w-xl\">\n        <div className=\"mb-10 flex items-center justify-between border-b border-white/10 pb-5\">\n          <div>\n            <p className=\"text-[11px] font-medium uppercase tracking-[0.28em] text-[#8d929b]\">专注计时</p>\n            <h1 className=\"mt-2 text-xl font-medium tracking-wide\">番茄钟</h1>\n          </div>\n          <span className=\"rounded-full border border-[#ef6a4c]/30 bg-[#ef6a4c]/10 px-3 py-1 text-xs text-[#ff8a70]\">\n            {isRunning ? \"进行中\" : \"准备就绪\"}\n          </span>\n        </div>\n\n        <div className=\"rounded-[28px] border border-white/[0.08] bg-[#111419] px-6 py-8 sm:px-10 sm:py-10\">\n          <div className=\"mb-8 flex justify-center\">\n            <div className=\"flex rounded-full bg-[#090b0e] p-1 ring-1 ring-white/[0.06]\">\n              {[25, 5, 15].map((option) => (\n                <button\n                  key={option}\n                  type=\"button\"\n                  onClick={() => switchDuration(option)}\n                  className={`min-w-20 rounded-full px-4 py-2 text-sm transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#ef6a4c] ${\n                    duration === option\n                      ? \"bg-[#252a31] text-white\"\n                      : \"text-[#858b95] hover:text-white\"\n                  }`}\n                >\n                  {option} 分钟\n                </button>\n              ))}\n            </div>\n          </div>\n\n          <div className=\"relative mx-auto aspect-square w-full max-w-[330px]\">\n            <svg\n              viewBox=\"0 0 300 300\"\n              className=\"h-full w-full -rotate-90\"\n              aria-label=\"计时进度环\"\n            >\n              <circle\n                cx=\"150\"\n                cy=\"150\"\n                r={radius}\n                fill=\"none\"\n                stroke=\"#20242b\"\n                strokeWidth=\"8\"\n              />\n              <circle\n                cx=\"150\"\n                cy=\"150\"\n                r={radius}\n                fill=\"none\"\n                stroke=\"#ef6a4c\"\n                strokeWidth=\"8\"\n                strokeLinecap=\"round\"\n                strokeDasharray={circumference}\n                strokeDashoffset={dashOffset}\n                className=\"transition-[stroke-dashoffset] duration-700 ease-linear\"\n              />\n            </svg>\n\n            <div className=\"absolute inset-0 flex flex-col items-center justify-center\">\n              <span className=\"text-xs tracking-[0.22em] text-[#737985]\">剩余时间</span>\n              <div className=\"mt-3 font-mono text-6xl font-light tabular-nums tracking-tight text-[#f7f3ec]\">\n                {String(minutes).padStart(2, \"0\")}\n                <span className=\"mx-1 text-[#555b65]\">:</span>\n                {String(seconds).padStart(2, \"0\")}\n              </div>\n              <span className=\"mt-3 text-xs text-[#8c929c]\">\n                {duration} 分钟专注\n              </span>\n            </div>\n          </div>\n\n          <div className=\"mt-9 flex items-center justify-center gap-5\">\n            <button\n              type=\"button\"\n              onClick={resetTimer}\n              className=\"rounded-full border border-white/10 px-5 py-3 text-sm text-[#a7acb4] transition-colors hover:border-white/20 hover:bg-white/[0.04] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#ef6a4c]\"\n            >\n              重置\n            </button>\n            <button\n              type=\"button\"\n              onClick={toggleTimer}\n              className=\"min-w-32 rounded-full bg-[#ef6a4c] px-7 py-3.5 text-sm font-semibold text-[#160b08] transition-colors hover:bg-[#ff7d61] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#ef6a4c] focus-visible:ring-offset-2 focus-visible:ring-offset-[#111419]\"\n            >\n              {isRunning ? \"暂停\" : secondsLeft === 0 ? \"重新开始\" : \"开始\"}\n            </button>\n          </div>\n        </div>\n\n        <p className=\"mt-6 text-center text-xs leading-6 text-[#656b75]\">\n          选择时长，开始一段专注。保持简单，保持专注。\n        </p>\n      </section>\n    </main>\n  );\n}\n```",
+  "recordedAt": "2026-10-21T08:36:26.767Z",
+  "usage": {
+    "input": 220,
+    "output": 1517,
+    "thinking": 39
+  },
+  "durationMs": 19429,
+  "events": [
+    {
+      "t": 4284,
+      "type": "thinking",
+      "text": "We need code. Need ensure React available perhaps JSX. SVG circle, state, timer effect"
+    },
+    {
+      "t": 4833,
+      "type": "thinking",
+      "text": ". Duration toggles 25/5/15 maybe. Chinese. Full viewport. Single component."
+    },
+    {
+      "t": 5282,
+      "type": "code",
+      "text": "```tsx\nimport { useEffect, useRef, useState } from \"react\";\n\nexport default function App() {\n  const"
+    },
+    {
+      "t": 5283,
+      "type": "code",
+      "text": " [duration, setDuration] = useState(25);\n  const [secondsLeft, setSecondsLeft] = use"
+    },
+    {
+      "t": 5803,
+      "type": "code",
+      "text": "State(25 * 60);\n  const [isRunning, setIsRunning] = useState(false);\n  const interval"
+    },
+    {
+      "t": 5804,
+      "type": "code",
+      "text": "Ref = useRef(null);\n\n  useEffect(() => {\n    if (!isRunning) return undefined;\n\n    intervalRef.current = setInterval"
+    },
+    {
+      "t": 5923,
+      "type": "code",
+      "text": "(() => {\n      setSecondsLeft((current) => {\n        if (current <= 1) {\n          set"
+    },
+    {
+      "t": 5980,
+      "type": "code",
+      "text": "IsRunning(false);\n          return 0;\n        }\n        return current - 1;\n      });\n    },"
+    },
+    {
+      "t": 6195,
+      "type": "code",
+      "text": " 1000);\n\n    return () => clearInterval(intervalRef.current);\n  }, [isRunning]);\n\n  const"
+    },
+    {
+      "t": 6377,
+      "type": "code",
+      "text": " totalSeconds = duration * 60;\n  const progress = totalSeconds === 0 ? 0 : (totalSeconds - seconds"
+    },
+    {
+      "t": 6605,
+      "type": "code",
+      "text": "Left) / totalSeconds;\n  const radius = 128;\n  const circumference = 2 * Math.PI * radius;\n  const dash"
+    },
+    {
+      "t": 6767,
+      "type": "code",
+      "text": "Offset = circumference * (1 - progress);\n  const minutes = Math.floor(secondsLeft / 60);\n"
+    },
+    {
+      "t": 6987,
+      "type": "code",
+      "text": "  const seconds = secondsLeft % 60;\n\n  const switchDuration = (nextDuration) => {\n    setDuration(nextDuration"
+    },
+    {
+      "t": 7165,
+      "type": "code",
+      "text": ");\n    setSecondsLeft(nextDuration * 60);\n    setIsRunning(false);\n  };\n\n  const toggleTimer"
+    },
+    {
+      "t": 7347,
+      "type": "code",
+      "text": " = () => {\n    if (secondsLeft === 0) {\n      setSecondsLeft(totalSeconds);\n      set"
+    },
+    {
+      "t": 7527,
+      "type": "code",
+      "text": "IsRunning(true);\n      return;\n    }\n    setIsRunning((running) => !running);\n  };\n\n"
+    },
+    {
+      "t": 7681,
+      "type": "code",
+      "text": "  const resetTimer = () => {\n    setSecondsLeft(totalSeconds);\n    setIsRunning(false);\n  };\n\n  return (\n   "
+    },
+    {
+      "t": 8065,
+      "type": "code",
+      "text": " <main className=\"min-h-screen w-full bg-[#0b0d10] text-[#f4f1ea] flex items-center justify-center px"
+    },
+    {
+      "t": 8425,
+      "type": "code",
+      "text": "-6 py-12 font-sans\">\n      <section className=\"w-full max-w-xl\">\n        <div className=\"mb"
+    },
+    {
+      "t": 8610,
+      "type": "code",
+      "text": "-10 flex items-center justify-between border-b border-white/10 pb-5\">\n          <div>\n"
+    },
+    {
+      "t": 8840,
+      "type": "code",
+      "text": "            <p className=\"text-[11px] font-medium uppercase tracking-[0.28em] text-["
+    },
+    {
+      "t": 9205,
+      "type": "code",
+      "text": "#8d929b]\">专注计时</p>\n            <h1 className=\"mt-2 text-xl font-medium tracking-wide"
+    },
+    {
+      "t": 9387,
+      "type": "code",
+      "text": "\">番茄钟</h1>\n          </div>\n          <span className=\"rounded-full border border"
+    },
+    {
+      "t": 10984,
+      "type": "code",
+      "text": "-[#ef6a4c]/30 bg-[#ef6a4c]/10 px-3 py-1 text-xs text-[#ff8a70]\">\n            {isRunning ?"
+    },
+    {
+      "t": 10984,
+      "type": "code",
+      "text": " \"进行中\" : \"准备就绪\"}\n          </span>\n        </div>\n\n        <div className=\"rounded-["
+    },
+    {
+      "t": 10984,
+      "type": "code",
+      "text": "28px] border border-white/[0.08] bg-[#111419] px-6 py-8 sm:px-10 sm:py-10\">\n          <div className"
+    },
+    {
+      "t": 11075,
+      "type": "code",
+      "text": "=\"mb-8 flex justify-center\">\n            <div className=\"flex rounded-full bg-[#090"
+    },
+    {
+      "t": 11217,
+      "type": "code",
+      "text": "b0e] p-1 ring-1 ring-white/[0.06]\">\n              {[25, 5, 15].map((option) => (\n                <button\n                  key={option}\n                  type=\"button\"\n                  onClick={() => switchDuration"
+    },
+    {
+      "t": 12228,
+      "type": "code",
+      "text": "(option)}\n                  className={`min-w-20 rounded-full px-4 py-2 text-sm transition-col"
+    },
+    {
+      "t": 12229,
+      "type": "code",
+      "text": "ors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#ef"
+    },
+    {
+      "t": 12335,
+      "type": "code",
+      "text": "6a4c] ${\n                    duration === option\n                      ? \"bg-[#252"
+    },
+    {
+      "t": 12335,
+      "type": "code",
+      "text": "a31] text-white\"\n                      : \"text-[#858b95] hover:text-white\"\n                  }`}\n                >\n                  {option} 分钟\n                </button>\n              ))}\n            </div>\n         "
+    },
+    {
+      "t": 12504,
+      "type": "code",
+      "text": " </div>\n\n          <div className=\"relative mx-auto aspect-square w-full max-w-[330"
+    },
+    {
+      "t": 13132,
+      "type": "code",
+      "text": "px]\">\n            <svg\n              viewBox=\"0 0 300 300\"\n              className=\""
+    },
+    {
+      "t": 13133,
+      "type": "code",
+      "text": "h-full w-full -rotate-90\"\n              aria-label=\"计时进度环\"\n            >\n              <circle\n                cx"
+    },
+    {
+      "t": 13133,
+      "type": "code",
+      "text": "=\"150\"\n                cy=\"150\"\n                r={radius}\n                fill=\"none\"\n"
+    },
+    {
+      "t": 13262,
+      "type": "code",
+      "text": "                stroke=\"#20242b\"\n                strokeWidth=\"8\"\n              />\n              <circle\n                cx=\"150\"\n                cy=\"150\"\n                r={radius}\n                fill"
+    },
+    {
+      "t": 13456,
+      "type": "code",
+      "text": "=\"none\"\n                stroke=\"#ef6a4c\"\n                strokeWidth=\"8\"\n                strokeLinecap=\"round\"\n                strokeDasharray={circumference}\n                strokeDashoffset={dash"
+    },
+    {
+      "t": 13841,
+      "type": "code",
+      "text": "Offset}\n                className=\"transition-[stroke-dashoffset] duration-700 ease-linear\"\n              />\n            </svg>\n\n            <div className=\"absolute inset"
+    },
+    {
+      "t": 14756,
+      "type": "code",
+      "text": "-0 flex flex-col items-center justify-center\">\n              <span className=\"text-xs"
+    },
+    {
+      "t": 14756,
+      "type": "code",
+      "text": " tracking-[0.22em] text-[#737985]\">剩余时间</span>\n              <div className=\"mt-3"
+    },
+    {
+      "t": 15514,
+      "type": "code",
+      "text": " font-mono text-6xl font-light tabular-nums tracking-tight text-[#f7f3ec]\">\n                {String(min"
+    },
+    {
+      "t": 15514,
+      "type": "code",
+      "text": "utes).padStart(2, \"0\")}\n                <span className=\"mx-1 text-[#555b65]\">:</"
+    },
+    {
+      "t": 15612,
+      "type": "code",
+      "text": "span>\n                {String(seconds).padStart(2, \"0\")}\n              </div>\n             "
+    },
+    {
+      "t": 16186,
+      "type": "code",
+      "text": " <span className=\"mt-3 text-xs text-[#8c929c]\">\n                {duration} 分钟专注\n"
+    },
+    {
+      "t": 16186,
+      "type": "code",
+      "text": "              </span>\n            </div>\n          </div>\n\n          <div className=\"mt-9 flex items-center justify-center gap-5\">\n            <button\n              type=\""
+    },
+    {
+      "t": 16286,
+      "type": "code",
+      "text": "button\"\n              onClick={resetTimer}\n              className=\"rounded-full border border-white/10 px"
+    },
+    {
+      "t": 16712,
+      "type": "code",
+      "text": "-5 py-3 text-sm text-[#a7acb4] transition-colors hover:border-white/20 hover:bg-white/[0.04] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#ef"
+    },
+    {
+      "t": 17038,
+      "type": "code",
+      "text": "6a4c]\"\n            >\n              重置\n            </button>\n            <button\n              type=\""
+    },
+    {
+      "t": 17157,
+      "type": "code",
+      "text": "button\"\n              onClick={toggleTimer}\n              className=\"min-w-32 rounded-full bg-[#ef6a"
+    },
+    {
+      "t": 17515,
+      "type": "code",
+      "text": "4c] px-7 py-3.5 text-sm font-semibold text-[#160b08] transition-colors hover:bg-[#ff"
+    },
+    {
+      "t": 17778,
+      "type": "code",
+      "text": "7d61] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#ef6a4c] focus-visible:"
+    },
+    {
+      "t": 17943,
+      "type": "code",
+      "text": "ring-offset-2 focus-visible:ring-offset-[#111419]\"\n            >\n              {isRunning ? \"暂停"
+    },
+    {
+      "t": 18122,
+      "type": "code",
+      "text": "\" : secondsLeft === 0 ? \"重新开始\" : \"开始\"}\n            </button>\n          </div>\n        </"
+    },
+    {
+      "t": 18448,
+      "type": "code",
+      "text": "div>\n\n        <p className=\"mt-6 text-center text-xs leading-6 text-[#656b75]\">\n          选择"
+    },
+    {
+      "t": 18863,
+      "type": "code",
+      "text": "时长，开始一段专注。保持简单，保持专注。\n        </p>\n      </section>\n    </main>\n  );\n}\n```"
+    }
+  ]
+}

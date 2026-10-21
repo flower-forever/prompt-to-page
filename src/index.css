@@ -1,0 +1,175 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --color-void: #08090b;
+  --color-panel: #0d0f13;
+  --color-panel-2: #121519;
+  --color-line: #1f242b;
+  --color-line-soft: #171b21;
+  --color-fog: #8a94a3;
+  --color-fog-dim: #5d6773;
+  --color-chalk: #e8ecf2;
+  --color-ember: #ff9f45;
+  --color-ember-dim: #b56c26;
+  --color-mint: #4ade80;
+  --color-rose: #fb7185;
+
+  --radius-xl: 14px;
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    margin: 0;
+    background-color: var(--color-void);
+    color: var(--color-chalk);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background: color-mix(in oklab, var(--color-ember) 28%, transparent);
+  }
+
+  *:focus-visible {
+    outline: 2px solid color-mix(in oklab, var(--color-ember) 70%, transparent);
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  .glass {
+    background: color-mix(in oklab, var(--color-panel) 82%, transparent);
+    backdrop-filter: blur(20px) saturate(1.2);
+    -webkit-backdrop-filter: blur(20px) saturate(1.2);
+  }
+
+  .hairline {
+    border: 1px solid color-mix(in oklab, var(--color-line) 88%, transparent);
+  }
+
+  .grid-noise {
+    background-image:
+      linear-gradient(to right, color-mix(in oklab, var(--color-line) 55%, transparent) 1px, transparent 1px),
+      linear-gradient(to bottom, color-mix(in oklab, var(--color-line) 55%, transparent) 1px, transparent 1px);
+    background-size: 56px 56px;
+  }
+
+  .ember-glow {
+    box-shadow:
+      0 0 0 1px color-mix(in oklab, var(--color-ember) 40%, transparent),
+      0 18px 60px -18px color-mix(in oklab, var(--color-ember) 45%, transparent);
+  }
+}
+
+/* ── 代码流配色 ───────────────────────────────────────── */
+.t-code {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.62;
+  tab-size: 2;
+}
+.t-code .tk {
+  color: #ff8fa3;
+}
+.t-code .ts {
+  color: #a5e075;
+}
+.t-code .tn {
+  color: #ffb86c;
+}
+.t-code .tf {
+  color: #82aaff;
+}
+.t-code .tt {
+  color: #7fdbca;
+}
+.t-code .ta {
+  color: #89ddff;
+}
+.t-code .tc {
+  color: #5d6773;
+  font-style: italic;
+}
+.t-code .tp {
+  color: #6b7686;
+}
+.t-code .td {
+  color: #d7dde5;
+}
+
+/* ── 滚动条 ───────────────────────────────────────────── */
+.scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line) transparent;
+}
+.scroll-thin::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.scroll-thin::-webkit-scrollbar-thumb {
+  background: var(--color-line);
+  border-radius: 99px;
+}
+.scroll-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+@keyframes caret-blink {
+  0%,
+  45% {
+    opacity: 1;
+  }
+  55%,
+  100% {
+    opacity: 0;
+  }
+}
+.caret::after {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 1.05em;
+  margin-left: 1px;
+  vertical-align: text-bottom;
+  background: var(--color-ember);
+  animation: caret-blink 1.1s steps(1) infinite;
+}
+
+@keyframes sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+.sweep::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in oklab, var(--color-ember) 12%, transparent),
+    transparent
+  );
+  animation: sweep 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

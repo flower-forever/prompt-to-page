@@ -24,3 +24,23 @@ jobs:
 
       - name: build
         run: npm run build
+
+      # 注意：secrets 上下文在 step 级 if 里不可用（GitHub 上下文可用性表明确排除），
+      # 所以这里把判断放进脚本里，而不是写成 if: ${{ secrets.X != '' }}。
+      - name: smoke test
+        env:
+          MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
+          MINIMAX_BASE_URL: https://api.minimaxi.com/anthropic
+          BASE_URL: http://127.0.0.1:8787
+        run: |
+          if [ -z "$MINIMAX_API_KEY" ]; then
+            echo "未配置 MINIMAX_API_KEY，跳过真实生成冒烟测试"
+            exit 0
+          fi
+          npx playwright install --with-deps chromium
+          npm start &
+          for i in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:8787/api/health && break
+            sleep 1
+          done
+          node scripts/e2e.mjs "做一个极简的番茄钟计时器页面"

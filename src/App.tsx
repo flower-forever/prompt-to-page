@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { CinemaExit } from './components/CinemaExit'
 import { Composer } from './components/Composer'
 import { ShareSheet } from './components/ShareSheet'
 import { Stage } from './components/Stage'
@@ -40,24 +41,41 @@ export default function App() {
     if (demo) void playDemo(demo)
   }, [demos, playDemo])
 
-  const toggleCinema = useCallback(() => {
-    setCinema((v) => {
-      const next = !v
-      const root = document.documentElement
-      if (next && !document.fullscreenElement) void root.requestFullscreen?.().catch(() => {})
-      if (!next && document.fullscreenElement) void document.exitFullscreen?.().catch(() => {})
-      return next
-    })
+  const toggleCinema = useCallback(() => setCinema((v) => !v), [])
+
+  // 全屏跟着演示模式走，而不是反过来：全屏只是手段，cinema 才是状态
+  useEffect(() => {
+    const root = document.documentElement
+    if (cinema) {
+      if (!document.fullscreenElement) void root.requestFullscreen?.().catch(() => {})
+    } else if (document.fullscreenElement) {
+      void document.exitFullscreen?.().catch(() => {})
+    }
+  }, [cinema])
+
+  // 浏览器抢先退出全屏时（Esc / F11 / 手势），跟着退出演示模式。
+  // 少了这一步，顶栏和输入区会永远藏起来 —— 用户就被锁在演示画面里了。
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      if (!document.fullscreenElement) setCinema(false)
+    }
+    document.addEventListener('fullscreenchange', onFullscreenChange)
+    return () => document.removeEventListener('fullscreenchange', onFullscreenChange)
   }, [])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        // 演示模式才是「藏起外壳」的那一层，Esc 先退它，再退分享卡
+        if (cinema) setCinema(false)
+        else setShareOpen(false)
+        return
+      }
       if (e.key === 'f' && e.target === document.body) toggleCinema()
-      if (e.key === 'Escape') setShareOpen(false)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [toggleCinema])
+  }, [cinema, toggleCinema])
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-void">
@@ -76,6 +94,8 @@ export default function App() {
       <Stage codeOpen={codeOpen} onToggleCode={() => setCodeOpen((v) => !v)} />
 
       {!cinema && <Composer />}
+
+      <CinemaExit visible={cinema} onExit={() => setCinema(false)} />
 
       <ShareSheet open={shareOpen} onClose={() => setShareOpen(false)} />
     </div>

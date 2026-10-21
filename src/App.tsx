@@ -10,7 +10,10 @@ import { useForge } from './store'
 export default function App() {
   const [health, setHealth] = useState<HealthInfo | null>(null)
   const [demos, setDemos] = useState<Demo[]>([])
-  const [codeOpen, setCodeOpen] = useState(true)
+  // 小屏默认收起代码面板：它会盖住预览
+  const [codeOpen, setCodeOpen] = useState(
+    () => typeof window === 'undefined' || window.innerWidth >= 768,
+  )
   const [cinema, setCinema] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
   const loadDemo = useForge((s) => s.loadDemo)

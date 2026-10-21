@@ -7,6 +7,8 @@
 
 > 上图是「回放」模式：录制自一次真实调用（2228 个增量事件，82.3s），回放时时间轴被压缩到 18 秒。
 
+<img src="docs/landing.png" width="820" alt="实时造物工坊界面">
+
 ---
 
 ## 这是什么
@@ -20,15 +22,21 @@
 
 整个过程没有构建步骤：TSX 在浏览器里编译，React 运行时和 Tailwind v4 全部自托管，断网也能跑。
 
-实测（`effort=low`，番茄钟计时器）：首字 5.4s → 首码 6.6s → 成品 17.7s，输出 1,832 tok，峰值 222 TPS，成本 **¥0.0078**。
+实测（`effort=low`）：
+
+| 需求 | 首字 | 首码 | 成品 | 输出 | TPS | 成本 |
+|---|---|---|---|---|---|---|
+| 极简番茄钟 | 5.4s | 6.6s | **17.7s** | 1,832 tok | 222（峰值） | ¥0.0078 |
+| 深色播客订阅页 | 1.1s | 1.8s | **39.6s** | 4,992 tok | 126 | ¥0.0195 |
+
+成品是可交互的：按钮能点、标签页能切、折叠能展开。
 
 ## 快速开始
 
 ```bash
 npm install
-npm run vendor      # 生成 public/vendor（React 运行时 + Tailwind 浏览器版）
 cp .env.example .env   # 填入 MINIMAX_API_KEY
-npm run dev         # http://localhost:5173
+npm run dev            # http://localhost:5173（vendor 会自动生成）
 ```
 
 没有 key 也能玩：首屏直接渲染录制好的成品，点顶栏「▶ 回放」按原始时间轴回放一次真实生成。
@@ -94,12 +102,13 @@ live-forge/
 
 | 命令 | 作用 |
 |---|---|
-| `npm run dev` | 同时起 vite(5173) 与 API(8787) |
+| `npm run dev` | 同时起 vite(5173) 与 API(8787)（自动先跑 vendor） |
 | `npm run record -- "<prompt>" <id> [title]` | 录制一次真实生成，存成回放件 |
 | `npm run capture` | 录屏并转 GIF（README 用） |
 | `npm run e2e -- "<prompt>"` | 端到端验证：流式 → 编译 → 预览出图 |
 | `npm run ui-check` | 分享卡 / 回放 / 演示模式 / 移动端 界面检查 |
 | `npm run shot` | 截图 + 抓控制台错误 |
+| `node scripts/repair-check.mjs` | 验证「报错 → 模型自己改」回路 |
 
 ## 已知边界
 

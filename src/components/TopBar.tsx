@@ -38,7 +38,7 @@ export function TopBar({
           <h1 className="truncate text-[13.5px] font-semibold tracking-tight text-chalk">
             实时造物工坊
           </h1>
-          <p className="truncate font-mono text-[10.5px] text-fog-dim">
+          <p className="hidden truncate font-mono text-[10.5px] text-fog-dim sm:block">
             Live Forge · 一句话，页面当场长出来
           </p>
         </div>
@@ -69,20 +69,20 @@ export function TopBar({
         </button>
         <button
           onClick={onReplay}
-          className="rounded-lg border border-line px-2.5 py-1.5 text-[12px] text-fog transition-colors hover:text-chalk"
+          className="rounded-lg border border-line px-2 py-1.5 text-[11.5px] text-fog transition-colors hover:text-chalk sm:px-2.5 sm:text-[12px]"
           title="按原始时间轴回放一次真实生成"
         >
           ▶ 回放
         </button>
         <button
           onClick={onShare}
-          className="rounded-lg border border-line px-2.5 py-1.5 text-[12px] text-fog transition-colors hover:text-chalk"
+          className="rounded-lg border border-line px-2 py-1.5 text-[11.5px] text-fog transition-colors hover:text-chalk sm:px-2.5 sm:text-[12px]"
         >
           分享卡
         </button>
         <button
           onClick={onCinema}
-          className={`rounded-lg border px-2.5 py-1.5 text-[12px] transition-colors ${
+          className={`rounded-lg border px-2 py-1.5 text-[11.5px] transition-colors sm:px-2.5 sm:text-[12px] ${
             cinema
               ? 'border-ember/50 bg-ember/12 text-ember'
               : 'border-line text-fog hover:text-chalk'

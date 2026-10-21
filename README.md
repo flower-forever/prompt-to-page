@@ -1,4 +1,4 @@
-# 实时造物工坊 · Live Forge
+# prompt-to-page · 实时造物工坊
 
 > 一句话，页面当场长出来。
 > MiniMax M3.1 Flash 前端能力的现场演示 —— 200+ TPS 的流式代码，在浏览器里实时编译成能点的页面。
@@ -8,6 +8,13 @@
 > 上图是「回放」模式：录制自一次真实调用（2228 个增量事件，82.3s），回放时时间轴被压缩到 18 秒。
 
 <img src="docs/landing.png" width="820" alt="实时造物工坊界面">
+
+| | |
+|---|---|
+| 在线体验 | `npm run dev` → http://localhost:5173 |
+| 模型 | MiniMax-M3.1-Flash（1M 上下文 / 原生多模态 / 200+ TPS） |
+| 成本 | 一次完整页面生成约 **¥0.008 ~ ¥0.02** |
+| 技术栈 | React 19 · Tailwind v4 · Vite 8 · Hono(SSE) · sucrase |
 
 ---
 

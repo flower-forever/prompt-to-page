@@ -1,9 +1,14 @@
 {
-  "name": "live-forge",
+  "name": "prompt-to-page",
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "实时造物工坊 · MiniMax M3.1 Flash 前端能力 demo",
+  "description": "实时造物工坊 · 一句话，页面当场长出来 —— MiniMax M3.1 Flash 前端能力现场演示",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/flower-forever/prompt-to-page.git"
+  },
   "scripts": {
     "predev": "npm run vendor",
     "dev": "node scripts/dev.mjs",

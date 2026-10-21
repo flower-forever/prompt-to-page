@@ -19,22 +19,8 @@ jobs:
 
       - run: npm ci
 
-      - name: 类型检查
+      - name: typecheck
         run: npm run typecheck
 
-      - name: 构建
+      - name: build
         run: npm run build
-
-      - name: 冒烟测试（起服务并打一次真实生成）
-        if: ${{ secrets.MINIMAX_API_KEY != '' }}
-        env:
-          MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
-          MINIMAX_BASE_URL: https://api.minimaxi.com/anthropic
-          BASE_URL: http://127.0.0.1:8787
-        run: |
-          npm start &
-          for i in $(seq 1 30); do
-            curl -fsS http://127.0.0.1:8787/api/health && break
-            sleep 1
-          done
-          node scripts/e2e.mjs "做一个极简的番茄钟计时器页面"

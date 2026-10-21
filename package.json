@@ -23,7 +23,9 @@
     "capture": "node scripts/capture.mjs",
     "shot": "node scripts/shot.mjs",
     "e2e": "node scripts/e2e.mjs",
-    "ui-check": "node scripts/ui-check.mjs"
+    "ui-check": "node scripts/ui-check.mjs",
+    "shader-lint": "tsx scripts/shader-lint.ts",
+    "shader-check": "node scripts/shader-check.mjs"
   },
   "dependencies": {
     "@hono/node-server": "2.1.5",

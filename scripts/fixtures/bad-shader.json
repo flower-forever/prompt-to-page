@@ -1,0 +1,460 @@
+{
+  "id": "tmp-shader",
+  "title": "极光 shader",
+  "prompt": "用 WebGL 原生 shader 写一个全屏极光：绿紫交叠的流动光带，基于分形噪声。要能实时调速度、色相偏移和强度，还能在极光、火焰、水波三种形态间切换",
+  "code": "import React, { useEffect, useRef, useState } from \"react\";\n\nconst vertexShader = `\nattribute vec2 a_position;\nvoid main() {\n  gl_Position = vec4(a_position, 0.0, 1.0);\n}\n`;\n\nconst fragmentShader = `\nprecision highp float;\nuniform float u_time;\nuniform float u_speed;\nuniform float u_hue;\nuniform float u_intensity;\nuniform int u_mode;\n\nfloat hash(vec2 p) {\n  p = fract(p * vec2(123.34, 456.21));\n  p += dot(p, p + 45.32);\n  return fract(p.x * p.y);\n}\n\nfloat noise(vec2 p) {\n  vec2 i = floor(p);\n  vec2 f = fract(p);\n  f = f * f * (3.0 - 2.0 * f);\n  float a = hash(i);\n  float b = hash(i + vec2(1.0, 0.0));\n  float c = hash(i + vec2(0.0, 1.0));\n  float d = hash(i + vec2(1.0, 1.0));\n  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);\n}\n\nfloat fbm(vec2 p) {\n  float value = 0.0;\n  float amplitude = 0.5;\n  for (int i = 0; i < 6; i++) {\n    value += amplitude * noise(p);\n    p = p * 2.03 + vec2(17.1, 9.2);\n    amplitude *= 0.5;\n  }\n  return value;\n}\n\nvec3 palette(float t) {\n  vec3 a = vec3(0.16, 0.22, 0.34);\n  vec3 b = vec3(0.38, 0.28, 0.38);\n  vec3 c = vec3(1.0, 0.82, 0.62);\n  vec3 d = vec3(0.02, 0.16, 0.29);\n  return a + b * cos(6.28318 * (c * t + d + u_hue));\n}\n\nvoid main() {\n  vec2 uv = (gl_FragCoord.xy * 2.0 - u_resolution.xy) / min(u_resolution.x, u_resolution.y);\n  float t = u_time * u_speed;\n\n  float aurora = 0.0;\n  float fire = 0.0;\n  float wave = 0.0;\n\n  if (u_mode == 0) {\n    float warp = fbm(uv * 2.4 + vec2(t * 0.12, -t * 0.07));\n    float bands = sin(uv.y * 5.0 + warp * 4.0 - t * 1.8);\n    float detail = fbm(uv * 5.0 + vec2(-t * 0.2, t * 0.35));\n    aurora = smoothstep(-0.2, 0.85, bands + detail * 0.65);\n    aurora *= smoothstep(1.25, 0.15, abs(uv.y + 0.08));\n  } else if (u_mode == 1) {\n    float n = fbm(uv * 3.0 + vec2(t * 0.5, -t * 0.8));\n    fire = smoothstep(0.25, 0.92, n + (1.0 - uv.y) * 0.25);\n    fire *= smoothstep(1.3, -0.55, uv.y);\n    fire = pow(fire, 1.45);\n  } else {\n    float n = fbm(vec2(uv.x * 3.2, uv.y * 4.5 - t * 0.65));\n    wave = sin(uv.y * 11.0 + n * 5.0 - t * 2.0);\n    wave = smoothstep(0.12, 0.95, wave * 0.5 + 0.5);\n    wave *= smoothstep(1.25, -0.6, uv.y);\n  }\n\n  vec3 color = vec3(0.0);\n  if (u_mode == 0) {\n    float hue = aurora * 0.72 + fbm(uv * 3.0 - t * 0.25) * 0.25;\n    color = palette(hue) * aurora * 1.5;\n    color += vec3(0.03, 0.18, 0.12) * aurora * 0.45;\n  } else if (u_mode == 1) {\n    color = mix(vec3(0.75, 0.035, 0.006), vec3(1.0, 0.72, 0.12), fire);\n    color += vec3(0.3, 0.015, 0.0) * pow(fire, 3.0);\n  } else {\n    color = mix(vec3(0.01, 0.08, 0.16), vec3(0.1, 0.7, 0.85), wave);\n    color += vec3(0.2, 0.35, 0.55) * pow(wave, 5.0);\n  }\n\n  float vignette = 1.0 - smoothstep(0.45, 1.65, length(uv));\n  color *= vignette * u_intensity;\n  color = 1.0 - exp(-color * 1.35);\n  color += hash(gl_FragCoord.xy + u_time) * 0.012;\n  gl_FragColor = vec4(color, 1.0);\n}\n`;\n\nexport default function App() {\n  const canvasRef = useRef<HTMLCanvasElement>(null);\n  const [speed, setSpeed] = useState(1);\n  const [hue, setHue] = useState(0.05);\n  const [intensity, setIntensity] = useState(1);\n  const [mode, setMode] = useState(0);\n\n  useEffect(() => {\n    const canvas = canvasRef.current;\n    if (!canvas) return;\n\n    const gl = canvas.getContext(\"webgl\", { antialias: false });\n    if (!gl) return;\n\n    const compile = (type: number, source: string) => {\n      const shader = gl.createShader(type);\n      if (!shader) return null;\n      gl.shaderSource(shader, source);\n      gl.compileShader(shader);\n      if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {\n        gl.deleteShader(shader);\n        return null;\n      }\n      return shader;\n    };\n\n    const vertex = compile(gl.VERTEX_SHADER, vertexShader);\n    const fragment = compile(gl.FRAGMENT_SHADER, fragmentShader);\n    if (!vertex || !fragment) return;\n\n    const program = gl.createProgram();\n    if (!program) return;\n    gl.attachShader(program, vertex);\n    gl.attachShader(program, fragment);\n    gl.linkProgram(program);\n    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {\n      gl.deleteProgram(program);\n      gl.deleteShader(vertex);\n      gl.deleteShader(fragment);\n      return;\n    }\n\n    const buffer = gl.createBuffer();\n    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);\n    gl.bufferData(\n      gl.ARRAY_BUFFER,\n      new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]),\n      gl.STATIC_DRAW\n    );\n\n    const positionLocation = gl.getAttribLocation(program, \"a_position\");\n    const resolutionLocation = gl.getUniformLocation(program, \"u_resolution\");\n    const timeLocation = gl.getUniformLocation(program, \"u_time\");\n    const speedLocation = gl.getUniformLocation(program, \"u_speed\");\n    const hueLocation = gl.getUniformLocation(program, \"u_hue\");\n    const intensityLocation = gl.getUniformLocation(program, \"u_intensity\");\n    const modeLocation = gl.getUniformLocation(program, \"u_mode\");\n\n    let frame = 0;\n    let start = performance.now();\n    let width = 0;\n    let height = 0;\n\n    const resize = () => {\n      const ratio = Math.min(window.devicePixelRatio || 1, 2);\n      const nextWidth = Math.floor(canvas.clientWidth * ratio);\n      const nextHeight = Math.floor(canvas.clientHeight * ratio);\n      if (nextWidth !== width || nextHeight !== height) {\n        width = nextWidth;\n        height = nextHeight;\n        canvas.width = width;\n        canvas.height = height;\n        gl.viewport(0, 0, width, height);\n      }\n    };\n\n    const render = (now: number) => {\n      resize();\n      gl.useProgram(program);\n      gl.bindBuffer(gl.ARRAY_BUFFER, buffer);\n      gl.enableVertexAttribArray(positionLocation);\n      gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);\n      gl.uniform2f(resolutionLocation, width, height);\n      gl.uniform1f(timeLocation, (now - start) / 1000);\n      gl.uniform1f(speedLocation, speed);\n      gl.uniform1f(hueLocation, hue);\n      gl.uniform1f(intensityLocation, intensity);\n      gl.uniform1i(modeLocation, mode);\n      gl.drawArrays(gl.TRIANGLES, 0, 6);\n      frame = requestAnimationFrame(render);\n    };\n\n    frame = requestAnimationFrame(render);\n    window.addEventListener(\"resize\", resize);\n\n    return () => {\n      cancelAnimationFrame(frame);\n      window.removeEventListener(\"resize\", resize);\n      gl.deleteBuffer(buffer);\n      gl.deleteProgram(program);\n      gl.deleteShader(vertex);\n      gl.deleteShader(fragment);\n    };\n  }, [speed, hue, intensity, mode]);\n\n  const modes = [\"极光\", \"火焰\", \"水波\"];\n\n  return (\n    <main className=\"min-h-screen w-full overflow-hidden bg-[#05070d] text-white\">\n      <section className=\"relative min-h-screen w-full\">\n        <canvas ref={canvasRef} className=\"absolute inset-0 h-full w-full\" />\n\n        <div className=\"relative z-10 flex min-h-screen flex-col justify-between p-6 sm:p-10\">\n          <header className=\"flex items-start justify-between\">\n            <div>\n              <p className=\"mb-3 text-[10px] font-medium uppercase tracking-[0.35em] text-cyan-200/60\">\n                Native WebGL Study\n              </p>\n              <h1 className=\"text-2xl font-medium tracking-tight text-white/90 sm:text-3xl\">\n                流光场\n              </h1>\n            </div>\n            <div className=\"rounded-full border border-white/15 bg-black/20 px-4 py-2 text-xs text-white/60 backdrop-blur-md\">\n              FRACTAL NOISE · 60 FPS\n            </div>\n          </header>\n\n          <div className=\"mb-2 flex w-full max-w-xl flex-col gap-6 rounded-2xl border border-white/15 bg-[#080b14]/70 p-5 shadow-2xl shadow-black/20 backdrop-blur-xl sm:p-6\">\n            <div className=\"flex items-center justify-between\">\n              <span className=\"text-xs font-medium uppercase tracking-[0.24em] text-white/45\">\n                形态选择\n              </span>\n              <span className=\"text-xs text-cyan-200/80\">{modes[mode]}</span>\n            </div>\n\n            <div className=\"grid grid-cols-3 gap-2\">\n              {modes.map((item, index) => (\n                <button\n                  key={item}\n                  type=\"button\"\n                  onClick={() => setMode(index)}\n                  className={`rounded-xl border px-3 py-3 text-sm transition-all duration-300 ${\n                    mode === index\n                      ? \"border-cyan-200/50 bg-cyan-200/15 text-white\"\n                      : \"border-white/10 bg-white/[0.03] text-white/45 hover:border-white/25 hover:text-white/80\"\n                  }`}\n                >\n                  {item}\n                </button>\n              ))}\n            </div>\n\n            <div className=\"space-y-5\">\n              <label className=\"block\">\n                <div className=\"mb-2 flex justify-between text-xs\">\n                  <span className=\"text-white/55\">流动速度</span>\n                  <span className=\"tabular-nums text-cyan-200/70\">{speed.toFixed(2)}</span>\n                </div>\n                <input\n                  type=\"range\"\n                  min=\"0\"\n                  max=\"2.5\"\n                  step=\"0.01\"\n                  value={speed}\n                  onChange={(event) => setSpeed(Number(event.target.value))}\n                  className=\"h-1 w-full cursor-pointer accent-cyan-200\"\n                />\n              </label>\n\n              <label className=\"block\">\n                <div className=\"mb-2 flex justify-between text-xs\">\n                  <span className=\"text-white/55\">色相偏移</span>\n                  <span className=\"tabular-nums text-violet-200/70\">{hue.toFixed(2)}</span>\n                </div>\n                <input\n                  type=\"range\"\n                  min=\"0\"\n                  max=\"1\"\n                  step=\"0.01\"\n                  value={hue}\n                  onChange={(event) => setHue(Number(event.target.value))}\n                  className=\"h-1 w-full cursor-pointer accent-violet-300\"\n                />\n              </label>\n\n              <label className=\"block\">\n                <div className=\"mb-2 flex justify-between text-xs\">\n                  <span className=\"text-white/55\">光场强度</span>\n                  <span className=\"tabular-nums text-cyan-200/70\">{intensity.toFixed(2)}</span>\n                </div>\n                <input\n                  type=\"range\"\n                  min=\"0.2\"\n                  max=\"2\"\n                  step=\"0.01\"\n                  value={intensity}\n                  onChange={(event) => setIntensity(Number(event.target.value))}\n                  className=\"h-1 w-full cursor-pointer accent-cyan-200\"\n                />\n              </label>\n            </div>\n          </div>\n        </div>\n      </section>\n    </main>\n  );\n}",
+  "recordedAt": "2026-10-21T17:07:46.961Z",
+  "usage": {
+    "input": 206,
+    "output": 3248,
+    "thinking": 101
+  },
+  "durationMs": 19994,
+  "events": [
+    {
+      "t": 951,
+      "type": "thinking",
+      "text": "We need craft code only. Need React TSX, WebGL shader. Need comply. Implement canvas ref"
+    },
+    {
+      "t": 1356,
+      "type": "thinking",
+      "text": ", controls sliders, mode buttons. Shader simplex-ish fbm. Fullscreen canvas. use"
+    },
+    {
+      "t": 1599,
+      "type": "thinking",
+      "text": "Effect compile, uniforms state dependencies. Need cleanup RAF. No imports. Use JS"
+    },
+    {
+      "t": 1901,
+      "type": "thinking",
+      "text": "X. Ensure shader strings. Need maybe resize observer. State speed hue intensity mode"
+    },
+    {
+      "t": 2202,
+      "type": "thinking",
+      "text": ". useEffect depends values. Shader uniforms location. Fragment GLSL string. Use attribute"
+    },
+    {
+      "t": 2408,
+      "type": "thinking",
+      "text": " a_position. canvas resize. Controls.\n\nNeed only code block."
+    },
+    {
+      "t": 2527,
+      "type": "code",
+      "text": "```tsx\nimport React, { useEffect, useRef, useState } from \"react\";\n\nconst vertexShader = `\n"
+    },
+    {
+      "t": 2726,
+      "type": "code",
+      "text": "attribute vec2 a_position;\nvoid main() {\n  gl_Position = vec4(a_position, 0.0, 1.0);\n"
+    },
+    {
+      "t": 2925,
+      "type": "code",
+      "text": "}\n`;\n\nconst fragmentShader = `\nprecision highp float;\nuniform float u_time;\nuniform float u_speed;\nuniform float u_hue;\nuniform float u_intensity;\nuniform int u_mode;\n\nfloat hash(vec2 p"
+    },
+    {
+      "t": 3257,
+      "type": "code",
+      "text": ") {\n  p = fract(p * vec2(123.34, 456.21));\n  p += dot(p, p + 45.32);\n  return fract(p.x * p"
+    },
+    {
+      "t": 3426,
+      "type": "code",
+      "text": ".y);\n}\n\nfloat noise(vec2 p) {\n  vec2 i = floor(p);\n  vec2 f = fract(p);\n  f = f * f * ("
+    },
+    {
+      "t": 3587,
+      "type": "code",
+      "text": "3.0 - 2.0 * f);\n  float a = hash(i);\n  float b = hash(i + vec2(1.0, 0.0));\n  float c = hash"
+    },
+    {
+      "t": 3769,
+      "type": "code",
+      "text": "(i + vec2(0.0, 1.0));\n  float d = hash(i + vec2(1.0, 1.0));\n  return mix(mix(a, b, f.x),"
+    },
+    {
+      "t": 3920,
+      "type": "code",
+      "text": " mix(c, d, f.x), f.y);\n}\n\nfloat fbm(vec2 p) {\n  float value = 0.0;\n  float amplitude = 0.5;\n "
+    },
+    {
+      "t": 4072,
+      "type": "code",
+      "text": " for (int i = 0; i < 6; i++) {\n    value += amplitude * noise(p);\n    p = p * 2.03"
+    },
+    {
+      "t": 4284,
+      "type": "code",
+      "text": " + vec2(17.1, 9.2);\n    amplitude *= 0.5;\n  }\n  return value;\n}\n\nvec3 palette(float"
+    },
+    {
+      "t": 4548,
+      "type": "code",
+      "text": " t) {\n  vec3 a = vec3(0.16, 0.22, 0.34);\n  vec3 b = vec3(0.38, 0.28, 0.38);\n  vec3 c = vec3"
+    },
+    {
+      "t": 4847,
+      "type": "code",
+      "text": "(1.0, 0.82, 0.62);\n  vec3 d = vec3(0.02, 0.16, 0.29);\n  return a + b * cos(6.28318"
+    },
+    {
+      "t": 5066,
+      "type": "code",
+      "text": " * (c * t + d + u_hue));\n}\n\nvoid main() {\n  vec2 uv = (gl_FragCoord.xy * 2.0 - u"
+    },
+    {
+      "t": 5191,
+      "type": "code",
+      "text": "_resolution.xy) / min(u_resolution.x, u_resolution.y);\n  float t = u_time * u_speed;\n\n "
+    },
+    {
+      "t": 5396,
+      "type": "code",
+      "text": " float aurora = 0.0;\n  float fire = 0.0;\n  float wave = 0.0;\n\n  if (u_mode == 0) {\n"
+    },
+    {
+      "t": 5691,
+      "type": "code",
+      "text": "    float warp = fbm(uv * 2.4 + vec2(t * 0.12, -t * 0.07));\n    float bands = sin"
+    },
+    {
+      "t": 6016,
+      "type": "code",
+      "text": "(uv.y * 5.0 + warp * 4.0 - t * 1.8);\n    float detail = fbm(uv * 5.0 + vec2(-t * 0.2, t"
+    },
+    {
+      "t": 6255,
+      "type": "code",
+      "text": " * 0.35));\n    aurora = smoothstep(-0.2, 0.85, bands + detail * 0.65);\n    aurora *="
+    },
+    {
+      "t": 6527,
+      "type": "code",
+      "text": " smoothstep(1.25, 0.15, abs(uv.y + 0.08));\n  } else if (u_mode == 1) {\n    float n"
+    },
+    {
+      "t": 6841,
+      "type": "code",
+      "text": " = fbm(uv * 3.0 + vec2(t * 0.5, -t * 0.8));\n    fire = smoothstep(0.25, 0.92, n +"
+    },
+    {
+      "t": 7207,
+      "type": "code",
+      "text": " (1.0 - uv.y) * 0.25);\n    fire *= smoothstep(1.3, -0.55, uv.y);\n    fire = pow(fire, 1"
+    },
+    {
+      "t": 7478,
+      "type": "code",
+      "text": ".45);\n  } else {\n    float n = fbm(vec2(uv.x * 3.2, uv.y * 4.5 - t * 0.65));\n    wave = sin(uv.y"
+    },
+    {
+      "t": 7830,
+      "type": "code",
+      "text": " * 11.0 + n * 5.0 - t * 2.0);\n    wave = smoothstep(0.12, 0.95, wave * 0.5 + 0.5);\n    wave *="
+    },
+    {
+      "t": 8067,
+      "type": "code",
+      "text": " smoothstep(1.25, -0.6, uv.y);\n  }\n\n  vec3 color = vec3(0.0);\n  if (u_mode == 0) {\n    float"
+    },
+    {
+      "t": 8305,
+      "type": "code",
+      "text": " hue = aurora * 0.72 + fbm(uv * 3.0 - t * 0.25) * 0.25;\n    color = palette(hue)"
+    },
+    {
+      "t": 8601,
+      "type": "code",
+      "text": " * aurora * 1.5;\n    color += vec3(0.03, 0.18, 0.12) * aurora * 0.45;\n  } else if (u_mode"
+    },
+    {
+      "t": 8866,
+      "type": "code",
+      "text": " == 1) {\n    color = mix(vec3(0.75, 0.035, 0.006), vec3(1.0, 0.72, 0.12), fire);\n    color += vec"
+    },
+    {
+      "t": 9153,
+      "type": "code",
+      "text": "3(0.3, 0.015, 0.0) * pow(fire, 3.0);\n  } else {\n    color = mix(vec3(0.01, 0.08, 0.16"
+    },
+    {
+      "t": 9406,
+      "type": "code",
+      "text": "), vec3(0.1, 0.7, 0.85), wave);\n    color += vec3(0.2, 0.35, 0.55) * pow(wave, 5"
+    },
+    {
+      "t": 9636,
+      "type": "code",
+      "text": ".0);\n  }\n\n  float vignette = 1.0 - smoothstep(0.45, 1.65, length(uv));\n  color *="
+    },
+    {
+      "t": 9955,
+      "type": "code",
+      "text": " vignette * u_intensity;\n  color = 1.0 - exp(-color * 1.35);\n  color += hash(gl_FragCoord.xy +"
+    },
+    {
+      "t": 10126,
+      "type": "code",
+      "text": " u_time) * 0.012;\n  gl_FragColor = vec4(color, 1.0);\n}\n`;\n\nexport default function App() {\n  const canvas"
+    },
+    {
+      "t": 10286,
+      "type": "code",
+      "text": "Ref = useRef<HTMLCanvasElement>(null);\n  const [speed, setSpeed] = useState(1);\n  const [hue, setH"
+    },
+    {
+      "t": 10394,
+      "type": "code",
+      "text": "ue] = useState(0.05);\n  const [intensity, setIntensity] = useState(1);\n  const [mode, setMode] = useState(0);\n\n  useEffect(() => {\n    const canvas = canvasRef.current;\n    if (!canvas"
+    },
+    {
+      "t": 10611,
+      "type": "code",
+      "text": ") return;\n\n    const gl = canvas.getContext(\"webgl\", { antialias: false });\n    if (!"
+    },
+    {
+      "t": 10800,
+      "type": "code",
+      "text": "gl) return;\n\n    const compile = (type: number, source: string) => {\n      const shader = gl.createShader(type"
+    },
+    {
+      "t": 10928,
+      "type": "code",
+      "text": ");\n      if (!shader) return null;\n      gl.shaderSource(shader, source);\n      gl.compileShader(shader);\n      if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {\n       "
+    },
+    {
+      "t": 11109,
+      "type": "code",
+      "text": " gl.deleteShader(shader);\n        return null;\n      }\n      return shader;\n    };\n\n    const vertex ="
+    },
+    {
+      "t": 11233,
+      "type": "code",
+      "text": " compile(gl.VERTEX_SHADER, vertexShader);\n    const fragment = compile(gl.FRAGMENT_SHADER, fragmentShader);\n    if (!vertex || !fragment) return;\n\n    const program = gl.createProgram();\n    if (!program) return;\n   "
+    },
+    {
+      "t": 11416,
+      "type": "code",
+      "text": " gl.attachShader(program, vertex);\n    gl.attachShader(program, fragment);\n    gl.linkProgram(program);\n    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {\n     "
+    },
+    {
+      "t": 11599,
+      "type": "code",
+      "text": " gl.deleteProgram(program);\n      gl.deleteShader(vertex);\n      gl.deleteShader"
+    },
+    {
+      "t": 11722,
+      "type": "code",
+      "text": "(fragment);\n      return;\n    }\n\n    const buffer = gl.createBuffer();\n    gl.bindBuffer(gl"
+    },
+    {
+      "t": 11895,
+      "type": "code",
+      "text": ".ARRAY_BUFFER, buffer);\n    gl.bufferData(\n      gl.ARRAY_BUFFER,\n      new Float32Array([-1, -"
+    },
+    {
+      "t": 12076,
+      "type": "code",
+      "text": "1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]),\n      gl.STATIC_DRAW\n    );\n\n    const positionLocation"
+    },
+    {
+      "t": 12194,
+      "type": "code",
+      "text": " = gl.getAttribLocation(program, \"a_position\");\n    const resolutionLocation = gl.getUniformLocation(program, \"u_resolution\");\n    const timeLocation = gl.getUniformLocation(program, \"u_time\");\n    const speedLocation ="
+    },
+    {
+      "t": 12379,
+      "type": "code",
+      "text": " gl.getUniformLocation(program, \"u_speed\");\n    const hueLocation = gl.getUniformLocation(program, \"u_hue\");\n    const intensityLocation = gl.getUniformLocation(program, \"u_intensity\");\n    const modeLocation = gl"
+    },
+    {
+      "t": 12655,
+      "type": "code",
+      "text": ".getUniformLocation(program, \"u_mode\");\n\n    let frame = 0;\n    let start = performance.now();\n"
+    },
+    {
+      "t": 12778,
+      "type": "code",
+      "text": "    let width = 0;\n    let height = 0;\n\n    const resize = () => {\n      const ratio"
+    },
+    {
+      "t": 12903,
+      "type": "code",
+      "text": " = Math.min(window.devicePixelRatio || 1, 2);\n      const nextWidth = Math.floor(canvas.clientWidth * ratio);\n      const nextHeight = Math.floor(canvas.clientHeight * ratio);\n      if ("
+    },
+    {
+      "t": 13083,
+      "type": "code",
+      "text": "nextWidth !== width || nextHeight !== height) {\n        width = nextWidth;\n        height = nextHeight;\n        canvas.width = width;\n        canvas.height = height;\n        gl.viewport(0, 0, width, height"
+    },
+    {
+      "t": 13305,
+      "type": "code",
+      "text": ");\n      }\n    };\n\n    const render = (now: number) => {\n      resize();\n      gl.useProgram(program);\n      gl.bindBuffer(gl.ARRAY_BUFFER, buffer);\n      gl.enableVertexAttribArray(positionLocation"
+    },
+    {
+      "t": 13521,
+      "type": "code",
+      "text": ");\n      gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);\n      gl.uniform2f(resolutionLocation, width, height);\n      gl.uniform1f(timeLocation"
+    },
+    {
+      "t": 13803,
+      "type": "code",
+      "text": ", (now - start) / 1000);\n      gl.uniform1f(speedLocation, speed);\n      gl.uniform1f(hueLocation, hue);\n      gl.uniform1f(intensityLocation, intensity);\n      gl.uniform1i(modeLocation, mode);\n      gl"
+    },
+    {
+      "t": 13978,
+      "type": "code",
+      "text": ".drawArrays(gl.TRIANGLES, 0, 6);\n      frame = requestAnimationFrame(render);\n    };\n\n    frame"
+    },
+    {
+      "t": 14099,
+      "type": "code",
+      "text": " = requestAnimationFrame(render);\n    window.addEventListener(\"resize\", resize);\n\n    return () => {\n      cancelAnimationFrame(frame);\n      window.removeEventListener(\"resize\", resize);\n      gl"
+    },
+    {
+      "t": 14229,
+      "type": "code",
+      "text": ".deleteBuffer(buffer);\n      gl.deleteProgram(program);\n      gl.deleteShader(vertex);\n      gl.deleteShader(fragment);\n    };\n  }, [speed, hue, intensity, mode]);\n\n  const"
+    },
+    {
+      "t": 14489,
+      "type": "code",
+      "text": " modes = [\"极光\", \"火焰\", \"水波\"];\n\n  return (\n    <main className=\"min-h-screen w-full overflow"
+    },
+    {
+      "t": 14668,
+      "type": "code",
+      "text": "-hidden bg-[#05070d] text-white\">\n      <section className=\"relative min-h-screen w-full\">\n        <canvas ref={canvasRef} className=\"absolute inset-0 h-full w-full\" />\n\n        <div"
+    },
+    {
+      "t": 15327,
+      "type": "code",
+      "text": " className=\"relative z-10 flex min-h-screen flex-col justify-between p-6 sm:p-10\">\n          <header className=\"flex items-start justify-between\">\n            <div>\n              <p className=\"mb-3 text-[10px] font-medium uppercase tracking-[0.35em] text-cyan-200/60\">\n                Native WebGL Study\n              </p>\n              <h"
+    },
+    {
+      "t": 15478,
+      "type": "code",
+      "text": "1 className=\"text-2xl font-medium tracking-tight text-white/90 sm:text-3xl\">\n               "
+    },
+    {
+      "t": 15660,
+      "type": "code",
+      "text": " 流光场\n              </h1>\n            </div>\n            <div className=\"rounded-full border border-white/15"
+    },
+    {
+      "t": 15870,
+      "type": "code",
+      "text": " bg-black/20 px-4 py-2 text-xs text-white/60 backdrop-blur-md\">\n              FR"
+    },
+    {
+      "t": 16113,
+      "type": "code",
+      "text": "ACTAL NOISE · 60 FPS\n            </div>\n          </header>\n\n          <div className=\"mb"
+    },
+    {
+      "t": 16347,
+      "type": "code",
+      "text": "-2 flex w-full max-w-xl flex-col gap-6 rounded-2xl border border-white/15 bg-[#080"
+    },
+    {
+      "t": 16551,
+      "type": "code",
+      "text": "b14]/70 p-5 shadow-2xl shadow-black/20 backdrop-blur-xl sm:p-6\">\n            <div className=\"flex items-center justify-between\">\n              <span className=\"text-xs font-medium uppercase"
+    },
+    {
+      "t": 16751,
+      "type": "code",
+      "text": " tracking-[0.24em] text-white/45\">\n                形态选择\n              </span>\n              <span"
+    },
+    {
+      "t": 16957,
+      "type": "code",
+      "text": " className=\"text-xs text-cyan-200/80\">{modes[mode]}</span>\n            </div>\n\n            <div className=\"grid grid-cols-3 gap-2\">\n              {modes.map((item, index) => (\n                <button"
+    },
+    {
+      "t": 17128,
+      "type": "code",
+      "text": "\n                  key={item}\n                  type=\"button\"\n                  onClick={() => setMode(index)}\n                  className={`rounded-xl border px-3 py-3 text-sm transition-all duration"
+    },
+    {
+      "t": 17359,
+      "type": "code",
+      "text": "-300 ${\n                    mode === index\n                      ? \"border-cyan-200/50"
+    },
+    {
+      "t": 17504,
+      "type": "code",
+      "text": " bg-cyan-200/15 text-white\"\n                      : \"border-white/10 bg-white/[0.03"
+    },
+    {
+      "t": 17676,
+      "type": "code",
+      "text": "] text-white/45 hover:border-white/25 hover:text-white/80\"\n                  }`}\n                >\n                  {item}\n                </button>\n              ))}\n            </div>\n\n            <div className=\"space"
+    },
+    {
+      "t": 17854,
+      "type": "code",
+      "text": "-y-5\">\n              <label className=\"block\">\n                <div className=\"mb-2 flex justify-between text-xs\">\n                  <span className=\"text-white/55"
+    },
+    {
+      "t": 18197,
+      "type": "code",
+      "text": "\">流动速度</span>\n                  <span className=\"tabular-nums text-cyan-200/70\">{speed.toFixed(2)}</span>\n                </div>\n                <input\n                  type=\"range"
+    },
+    {
+      "t": 18286,
+      "type": "code",
+      "text": "\"\n                  min=\"0\"\n                  max=\"2.5\"\n                  step=\"0.01\"\n                  value={speed}\n                  onChange={(event) => setSpeed(Number"
+    },
+    {
+      "t": 18524,
+      "type": "code",
+      "text": "(event.target.value))}\n                  className=\"h-1 w-full cursor-pointer accent-cyan-200\"\n                />\n              </label>\n\n              <label className=\"block\">\n               "
+    },
+    {
+      "t": 18693,
+      "type": "code",
+      "text": " <div className=\"mb-2 flex justify-between text-xs\">\n                  <span className=\"text-white/55\">色相偏移</span>\n                  <span className=\"tabular-nums text-violet-200/70\">{hue"
+    },
+    {
+      "t": 18894,
+      "type": "code",
+      "text": ".toFixed(2)}</span>\n                </div>\n                <input\n                  type=\"range\"\n                  min=\"0\"\n                  max=\"1\"\n                  step=\"0.01\"\n                  value"
+    },
+    {
+      "t": 19036,
+      "type": "code",
+      "text": "={hue}\n                  onChange={(event) => setHue(Number(event.target.value))}\n                  className=\"h-1 w-full cursor-pointer accent-violet-300\"\n                />\n              </label>\n\n             "
+    },
+    {
+      "t": 19207,
+      "type": "code",
+      "text": " <label className=\"block\">\n                <div className=\"mb-2 flex justify-between text-xs\">\n                  <"
+    },
+    {
+      "t": 19350,
+      "type": "code",
+      "text": "span className=\"text-white/55\">光场强度</span>\n                  <span className=\"tabular-nums text-cyan-200/70\">{intensity.toFixed(2)}</span>\n                </div>\n                <input\n                 "
+    },
+    {
+      "t": 19548,
+      "type": "code",
+      "text": " type=\"range\"\n                  min=\"0.2\"\n                  max=\"2\"\n                  step=\"0.01\"\n                  value={intensity}\n                  onChange={(event) => setIntensity(Number(event"
+    },
+    {
+      "t": 19683,
+      "type": "code",
+      "text": ".target.value))}\n                  className=\"h-1 w-full cursor-pointer accent-cyan-200\"\n                />\n             "
+    },
+    {
+      "t": 19819,
+      "type": "code",
+      "text": " </label>\n            </div>\n          </div>\n        </div>\n      </section>\n    </main>\n  );\n}\n```"
+    }
+  ]
+}

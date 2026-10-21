@@ -6,8 +6,13 @@ on:
   pull_request:
     branches: [main]
 
+# 默认最小权限：这个 workflow 只需要读代码
+permissions:
+  contents: read
+
 jobs:
   check:
+    # 不碰任何 secret，PR 也照跑
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -21,6 +26,26 @@ jobs:
 
       - name: typecheck
         run: npm run typecheck
+
+      - name: build
+        run: npm run build
+
+  smoke:
+    # 只在推 main 时跑真实生成。
+    # 关键：PR（包括 fork 的 PR）拿不到 secret，这里也显式排除，
+    # 免得有人在 PR 里改脚本把密钥打出来。
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
 
       - name: build
         run: npm run build

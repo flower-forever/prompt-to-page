@@ -4,6 +4,13 @@
  *
  * 走「回放」模式，不依赖 API key，结果可复现。
  * 逐帧截图 → pngjs 解码 → gifenc 编码（Playwright 自带的 ffmpeg 不带 gif 编码器）。
+ *
+ * 参数（环境变量）：
+ *   GIF_WIDTH   宽，默认 800。低于这个值代码区就没法读了。
+ *   GIF_COLORS  调色板颜色数，默认 32。语法高亮在 32 色下依然可辨。
+ *   GIF_FPS     目标帧率，默认 10。实际帧率受截图速度限制（~340ms/帧）。
+ *   GIF_SECONDS 录制窗口秒数，0 = 录到回放结束。回放现在有 32.6s，
+ *               想更小的体积就截一段。
  */
 import { chromium } from 'playwright'
 import gifenc from 'gifenc'
@@ -14,10 +21,15 @@ import path from 'node:path'
 const { GIFEncoder, quantize, applyPalette } = gifenc
 
 const out = process.argv[2] ?? 'docs/demo.gif'
-const W = Number(process.env.GIF_WIDTH ?? 640)
+const W = Number(process.env.GIF_WIDTH ?? 800)
 const H = Math.round((W * 9) / 16)
 const FPS = Number(process.env.GIF_FPS ?? 10)
-const COLORS = Number(process.env.GIF_COLORS ?? 96)
+const COLORS = Number(process.env.GIF_COLORS ?? 32)
+/**
+ * 录制窗口（秒）。0 = 录到回放结束。
+ * 帧数减不下来 —— 逐帧截图本身有 ~340ms 开销，体积只能靠缩短窗口来压。
+ */
+const SECONDS = Number(process.env.GIF_SECONDS ?? 0)
 
 const browser = await chromium.launch()
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } })
@@ -36,7 +48,7 @@ let frames = 0
 let last = Date.now()
 const t0 = Date.now()
 
-const deadline = Date.now() + 45_000
+const deadline = SECONDS > 0 ? t0 + SECONDS * 1000 : t0 + 45_000
 while (Date.now() < deadline) {
   const now = Date.now()
   if (now - last >= frameInterval) {
